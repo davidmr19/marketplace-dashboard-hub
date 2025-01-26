@@ -9,7 +9,155 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      product_variants: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          product_id: string | null
+          size: string
+          stock: number
+        }
+        Insert: {
+          color: string
+          created_at?: string
+          id?: string
+          product_id?: string | null
+          size: string
+          stock?: number
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          product_id?: string | null
+          size?: string
+          stock?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_variants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          price: number
+          rating: number | null
+          title: string
+          total_ratings: number | null
+          updated_at: string
+          user_id: string
+          views: number | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          price: number
+          rating?: number | null
+          title: string
+          total_ratings?: number | null
+          updated_at?: string
+          user_id: string
+          views?: number | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          price?: number
+          rating?: number | null
+          title?: string
+          total_ratings?: number | null
+          updated_at?: string
+          user_id?: string
+          views?: number | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          btc_wallet: string | null
+          created_at: string
+          iban: string | null
+          id: string
+          last_withdrawal_date: string | null
+          withdrawal_frequency: number | null
+          withdrawal_method: string | null
+        }
+        Insert: {
+          btc_wallet?: string | null
+          created_at?: string
+          iban?: string | null
+          id: string
+          last_withdrawal_date?: string | null
+          withdrawal_frequency?: number | null
+          withdrawal_method?: string | null
+        }
+        Update: {
+          btc_wallet?: string | null
+          created_at?: string
+          iban?: string | null
+          id?: string
+          last_withdrawal_date?: string | null
+          withdrawal_frequency?: number | null
+          withdrawal_method?: string | null
+        }
+        Relationships: []
+      }
+      sales: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          product_id: string | null
+          quantity: number
+          user_id: string | null
+          variant_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          product_id?: string | null
+          quantity: number
+          user_id?: string | null
+          variant_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          product_id?: string | null
+          quantity?: number
+          user_id?: string | null
+          variant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
