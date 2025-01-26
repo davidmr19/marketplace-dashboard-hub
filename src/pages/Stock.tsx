@@ -20,13 +20,15 @@ import { Button } from "@/components/ui/button";
 import { Search, Eye, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 interface StockVariant {
   id: string;
   size: string;
   color: string;
   stock: number;
+  product_id: string;
+  created_at: string;
 }
 
 interface Product {
@@ -35,8 +37,8 @@ interface Product {
   price: number;
   description: string | null;
   sales: number;
-  views: number;
-  rating: number;
+  views: number | null;
+  rating: number | null;
   variants: StockVariant[];
 }
 
@@ -81,6 +83,7 @@ const Stock = () => {
             return {
               ...product,
               variants: [],
+              sales: 0
             };
           }
 
@@ -90,13 +93,13 @@ const Stock = () => {
             .select("quantity")
             .eq("product_id", product.id);
 
-          const totalSales = salesError ? 0 : sales?.reduce((acc, sale) => acc + sale.quantity, 0) || 0;
+          const totalSales = salesError ? 0 : sales?.reduce((acc, sale) => acc + (sale.quantity || 0), 0) || 0;
 
           return {
             ...product,
             sales: totalSales,
             variants: variants || [],
-          };
+          } as Product;
         })
       );
 
@@ -167,7 +170,7 @@ const Stock = () => {
                     <TableCell>${product.price.toFixed(2)}</TableCell>
                     <TableCell>{totalStock}</TableCell>
                     <TableCell>{product.sales}</TableCell>
-                    <TableCell>{product.views}</TableCell>
+                    <TableCell>{product.views || 0}</TableCell>
                     <TableCell>
                       <Button
                         variant="ghost"
@@ -203,9 +206,9 @@ const Stock = () => {
           <div className="mt-4">
             <h3 className="text-lg font-semibold mb-3">Stock por Variante</h3>
             <div className="grid gap-2">
-              {selectedProduct?.variants.map((variant, index) => (
+              {selectedProduct?.variants.map((variant) => (
                 <div
-                  key={index}
+                  key={variant.id}
                   className="flex items-center justify-between p-2 bg-muted rounded-lg"
                 >
                   <span className="font-medium">
