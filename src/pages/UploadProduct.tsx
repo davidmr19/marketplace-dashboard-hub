@@ -5,6 +5,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Plus, X, Upload } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
+import { useNavigate } from "react-router-dom";
 
 interface SizeColor {
   size: string;
@@ -13,6 +16,8 @@ interface SizeColor {
 }
 
 const UploadProduct = () => {
+  const { toast } = useToast();
+  const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [price, setPrice] = useState("");
   const [shortDesc, setShortDesc] = useState("");
@@ -20,6 +25,7 @@ const UploadProduct = () => {
   const [images, setImages] = useState<File[]>([]);
   const [sizeColors, setSizeColors] = useState<SizeColor[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -36,7 +42,6 @@ const UploadProduct = () => {
     const newImages = [...images];
     const newPreviewUrls = [...previewUrls];
     
-    // Revoke the URL to prevent memory leaks
     URL.revokeObjectURL(previewUrls[index]);
     
     newImages.splice(index, 1);
@@ -62,12 +67,77 @@ const UploadProduct = () => {
     setSizeColors(newSizeColors);
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "Debes iniciar sesión para subir productos",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // 1. Crear el producto
+      const { data: product, error: productError } = await supabase
+        .from('products')
+        .insert({
+          title,
+          description: `${shortDesc}\n\n${longDesc}`,
+          price: parseFloat(price),
+          user_id: user.id,
+        })
+        .select()
+        .single();
+
+      if (productError || !product) {
+        throw new Error(productError?.message || "Error al crear el producto");
+      }
+
+      // 2. Crear las variantes
+      const variantsToInsert = sizeColors.map(variant => ({
+        product_id: product.id,
+        size: variant.size,
+        color: variant.color,
+        stock: variant.stock,
+      }));
+
+      const { error: variantsError } = await supabase
+        .from('product_variants')
+        .insert(variantsToInsert);
+
+      if (variantsError) {
+        throw new Error(variantsError.message);
+      }
+
+      toast({
+        title: "¡Éxito!",
+        description: "Producto creado correctamente",
+      });
+
+      navigate("/stock");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Error al crear el producto",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
       <Card className="p-6 shadow-lg">
         <h1 className="text-2xl font-semibold mb-6">Subir Nuevo Producto</h1>
         
-        <div className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <Label htmlFor="title">Título</Label>
             <Input
@@ -75,6 +145,7 @@ const UploadProduct = () => {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="mt-1"
+              required
             />
           </div>
 
@@ -86,6 +157,9 @@ const UploadProduct = () => {
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               className="mt-1"
+              required
+              min="0"
+              step="0.01"
             />
           </div>
 
@@ -96,6 +170,7 @@ const UploadProduct = () => {
               value={shortDesc}
               onChange={(e) => setShortDesc(e.target.value)}
               className="mt-1"
+              required
             />
           </div>
 
@@ -107,6 +182,7 @@ const UploadProduct = () => {
               onChange={(e) => setLongDesc(e.target.value)}
               className="mt-1"
               rows={4}
+              required
             />
           </div>
 
@@ -121,6 +197,7 @@ const UploadProduct = () => {
                     className="h-24 w-24 object-cover rounded-lg"
                   />
                   <button
+                    type="button"
                     onClick={() => removeImage(index)}
                     className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
                   >
@@ -151,21 +228,26 @@ const UploadProduct = () => {
                     value={item.size}
                     onChange={(e) => updateSizeColor(index, "size", e.target.value)}
                     className="flex-1"
+                    required
                   />
                   <Input
                     placeholder="Color"
                     value={item.color}
                     onChange={(e) => updateSizeColor(index, "color", e.target.value)}
                     className="flex-1"
+                    required
                   />
                   <Input
                     type="number"
                     placeholder="Stock"
                     value={item.stock}
-                    onChange={(e) => updateSizeColor(index, "stock", parseInt(e.target.value))}
+                    onChange={(e) => updateSizeColor(index, "stock", parseInt(e.target.value) || 0)}
                     className="flex-1"
+                    required
+                    min="0"
                   />
                   <Button
+                    type="button"
                     variant="destructive"
                     size="icon"
                     onClick={() => removeSizeColor(index)}
@@ -186,10 +268,10 @@ const UploadProduct = () => {
             </div>
           </div>
 
-          <Button className="w-full">
-            Subir Producto
+          <Button className="w-full" type="submit" disabled={isLoading}>
+            {isLoading ? "Subiendo..." : "Subir Producto"}
           </Button>
-        </div>
+        </form>
       </Card>
     </div>
   );

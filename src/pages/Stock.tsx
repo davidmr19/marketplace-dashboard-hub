@@ -18,69 +18,119 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Search, Eye, Star } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { useToast } from "@/components/ui/use-toast";
 
 interface StockVariant {
+  id: string;
   size: string;
   color: string;
-  quantity: number;
+  stock: number;
 }
 
 interface Product {
-  id: number;
+  id: string;
   title: string;
   price: number;
-  stock: number;
+  description: string | null;
   sales: number;
   views: number;
   rating: number;
   variants: StockVariant[];
 }
 
-const mockProducts: Product[] = [
-  {
-    id: 1,
-    title: "Camiseta Premium",
-    price: 29.99,
-    stock: 150,
-    sales: 45,
-    views: 1200,
-    rating: 4.5,
-    variants: [
-      { size: "XS", color: "Verde", quantity: 50 },
-      { size: "S", color: "Verde", quantity: 30 },
-      { size: "M", color: "Azul", quantity: 40 },
-      { size: "L", color: "Rojo", quantity: 30 },
-    ],
-  },
-  {
-    id: 2,
-    title: "Pantalón Vaquero",
-    price: 59.99,
-    stock: 80,
-    sales: 32,
-    views: 890,
-    rating: 4.2,
-    variants: [
-      { size: "S", color: "Azul", quantity: 20 },
-      { size: "M", color: "Negro", quantity: 35 },
-      { size: "L", color: "Azul", quantity: 25 },
-    ],
-  },
-];
-
 const Stock = () => {
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  const filteredProducts = mockProducts.filter((product) =>
+  const { data: products = [], isLoading } = useQuery({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const { data: productsData, error: productsError } = await supabase
+        .from("products")
+        .select(`
+          id,
+          title,
+          price,
+          description,
+          views,
+          rating
+        `);
+
+      if (productsError) {
+        toast({
+          title: "Error",
+          description: "Error al cargar los productos",
+          variant: "destructive",
+        });
+        return [];
+      }
+
+      // Obtener las variantes para cada producto
+      const productsWithVariants = await Promise.all(
+        productsData.map(async (product) => {
+          const { data: variants, error: variantsError } = await supabase
+            .from("product_variants")
+            .select("*")
+            .eq("product_id", product.id);
+
+          if (variantsError) {
+            console.error("Error fetching variants:", variantsError);
+            return {
+              ...product,
+              variants: [],
+            };
+          }
+
+          // Obtener el total de ventas para este producto
+          const { data: sales, error: salesError } = await supabase
+            .from("sales")
+            .select("quantity")
+            .eq("product_id", product.id);
+
+          const totalSales = salesError ? 0 : sales?.reduce((acc, sale) => acc + sale.quantity, 0) || 0;
+
+          return {
+            ...product,
+            sales: totalSales,
+            variants: variants || [],
+          };
+        })
+      );
+
+      return productsWithVariants;
+    },
+  });
+
+  const filteredProducts = products.filter((product) =>
     product.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (isLoading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Card className="p-6 shadow-lg">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+            <div className="h-12 bg-gray-200 rounded"></div>
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-12 bg-gray-200 rounded"></div>
+              ))}
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
       <Card className="p-6 shadow-lg">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-semibold">Priv Shop</h1>
+          <h1 className="text-2xl font-semibold">Inventario</h1>
           <div className="relative w-64">
             <Input
               placeholder="Buscar productos..."
@@ -98,32 +148,39 @@ const Stock = () => {
               <TableRow>
                 <TableHead>Producto</TableHead>
                 <TableHead>Precio</TableHead>
-                <TableHead>Stock</TableHead>
+                <TableHead>Stock Total</TableHead>
                 <TableHead>Ventas</TableHead>
                 <TableHead>Vistas</TableHead>
                 <TableHead>Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredProducts.map((product) => (
-                <TableRow key={product.id} className="animate-slide-in">
-                  <TableCell className="font-medium">{product.title}</TableCell>
-                  <TableCell>${product.price.toFixed(2)}</TableCell>
-                  <TableCell>{product.stock}</TableCell>
-                  <TableCell>{product.sales}</TableCell>
-                  <TableCell>{product.views}</TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSelectedProduct(product)}
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      Ver más
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filteredProducts.map((product) => {
+                const totalStock = product.variants.reduce(
+                  (acc, variant) => acc + variant.stock,
+                  0
+                );
+
+                return (
+                  <TableRow key={product.id} className="animate-slide-in">
+                    <TableCell className="font-medium">{product.title}</TableCell>
+                    <TableCell>${product.price.toFixed(2)}</TableCell>
+                    <TableCell>{totalStock}</TableCell>
+                    <TableCell>{product.sales}</TableCell>
+                    <TableCell>{product.views}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedProduct(product)}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Ver más
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
@@ -135,30 +192,27 @@ const Stock = () => {
             <DialogTitle>{selectedProduct?.title}</DialogTitle>
             <DialogDescription className="flex items-center gap-1">
               <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-              <span>{selectedProduct?.rating.toFixed(1)} de 5 estrellas</span>
+              <span>
+                {selectedProduct?.rating
+                  ? `${selectedProduct.rating.toFixed(1)} de 5 estrellas`
+                  : "Sin calificaciones"}
+              </span>
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-4">
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-500">Ventas Totales</p>
-              <p className="text-2xl font-semibold">{selectedProduct?.sales}</p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-500">Visitas</p>
-              <p className="text-2xl font-semibold">{selectedProduct?.views}</p>
-            </div>
-          </div>
           
           <div className="mt-4">
             <h3 className="text-lg font-semibold mb-3">Stock por Variante</h3>
             <div className="grid gap-2">
               {selectedProduct?.variants.map((variant, index) => (
-                <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-lg">
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-2 bg-muted rounded-lg"
+                >
                   <span className="font-medium">
                     Talla {variant.size} - {variant.color}
                   </span>
                   <span className="text-muted-foreground">
-                    {variant.quantity} unidades
+                    {variant.stock} unidades
                   </span>
                 </div>
               ))}
