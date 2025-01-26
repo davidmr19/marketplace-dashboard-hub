@@ -113,6 +113,30 @@ export type Database = {
         }
         Relationships: []
       }
+      referrals: {
+        Row: {
+          commission_earned: number | null
+          created_at: string
+          id: string
+          referred_id: string
+          referrer_id: string
+        }
+        Insert: {
+          commission_earned?: number | null
+          created_at?: string
+          id?: string
+          referred_id: string
+          referrer_id: string
+        }
+        Update: {
+          commission_earned?: number | null
+          created_at?: string
+          id?: string
+          referred_id?: string
+          referrer_id?: string
+        }
+        Relationships: []
+      }
       sales: {
         Row: {
           amount: number
@@ -163,7 +187,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_total_referral_earnings: {
+        Args: {
+          user_uuid: string
+        }
+        Returns: number
+      }
+      get_total_referrals: {
+        Args: {
+          user_uuid: string
+        }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
